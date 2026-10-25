@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <title>Image Compare — Before &amp; After Slider</title>
+  <meta name="description" content="Compare two images side by side with a draggable slider. No uploads, no servers — everything stays on your device.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* ── Reset & Base ───────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: #FAF8F5;
+      color: #2D2A26;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      -webkit-tap-highlight-color: transparent;
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+
+    /* ── Header ─────────────────────────────────── */
+    .header {
+      width: 100%;
+      max-width: 960px;
+      padding: 28px 20px 0;
+      text-align: center;
+    }
+    .header h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: #1A1816;
+    }
+    .header p {
+      font-size: 0.875rem;
+      color: #7A7570;
+      margin-top: 4px;
+    }
+
+    /* ── Upload Area ────────────────────────────── */
+    .upload-row {
+      display: flex;
+      gap: 16px;
+      width: 100%;
+      max-width: 960px;
+      padding: 20px 20px 0;
+    }
+    .upload-card {
+      flex: 1;
+      position: relative;
+    }
+    .upload-card input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      z-index: 2;
+    }
+    .upload-card .upload-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 14px 16px;
+      min-height: 48px;
+      background: #fff;
+      border: 1.5px dashed #D4CFC9;
+      border-radius: 12px;
+      font-family: inherit;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #4A4540;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+    .upload-card:hover .upload-btn,
+    .upload-card input:focus-visible ~ .upload-btn {
+      border-color: #A09890;
+      background: #F5F2EE;
+    }
+    .upload-card.has-image .upload-btn {
+      border-style: solid;
+      border-color: #C8C2BA;
+      background: #F0EDE8;
+    }
+    .upload-icon {
+      width: 18px; height: 18px;
+      flex-shrink: 0;
+    }
+    .upload-filename {
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ── Controls Row ───────────────────────────── */
+    .controls-row {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      max-width: 960px;
+      padding: 12px 20px 0;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .ctrl-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 20px;
+      min-height: 44px;
+      background: #fff;
+      border: 1.5px solid #D4CFC9;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: #4A4540;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      user-select: none;
+      touch-action: manipulation;
+    }
+    .ctrl-btn:hover { border-color: #A09890; background: #F5F2EE; }
+    .ctrl-btn:active { background: #EBE7E2; }
+    .ctrl-btn:disabled { opacity: .4; cursor: default; pointer-events: none; }
+    .ctrl-btn svg { width: 15px; height: 15px; }
+
+    /* ── Comparison Container ───────────────────── */
+    .compare-wrapper {
+      width: 100%;
+      max-width: 960px;
+      padding: 16px 20px 32px;
+    }
+    .compare-container {
+      position: relative;
+      width: 100%;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #EDEAE6;
+      border: 1.5px solid #D4CFC9;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: pan-y pinch-zoom;
+    }
+    .compare-container.active {
+      touch-action: none;
+    }
+
+    /* Empty State */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 60px 24px;
+      text-align: center;
+      color: #8A8480;
+    }
+    .empty-state svg { width: 48px; height: 48px; opacity: .45; }
+    .empty-state .es-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #5A5550;
+    }
+    .empty-state .es-desc {
+      font-size: 0.85rem;
+      max-width: 320px;
+      line-height: 1.5;
+    }
+
+    /* Image layers */
+    .compare-container.active .empty-state { display: none; }
+
+    .img-layer {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    .after-layer {
+      display: block;
+    }
+    .before-layer {
+      position: absolute;
+      top: 0; left: 0;
+      height: 100%;
+      width: 100%;
+      object-fit: cover;
+      clip-path: inset(0 50% 0 0);
+    }
+    /* Both layers use object-fit: contain to preserve aspect ratios */
+    .after-layer, .before-layer {
+      object-fit: contain;
+      background: #EDEAE6;
+    }
+    .before-layer {
+      object-fit: contain;
+      /* We override clip-path dynamically via JS */
+    }
+
+    /* Labels */
+    .label {
+      position: absolute;
+      top: 14px;
+      padding: 4px 12px;
+      background: rgba(30,28,24,.62);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border-radius: 6px;
+      pointer-events: none;
+      z-index: 4;
+      opacity: 0;
+      transition: opacity .25s;
+    }
+    .compare-container.active .label { opacity: 1; }
+    .label-before { left: 14px; }
+    .label-after { right: 14px; }
+
+    /* Divider Line */
+    .divider {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: #fff;
+      box-shadow: 0 0 6px rgba(0,0,0,.18);
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 5;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .25s;
+    }
+    .compare-container.active .divider { opacity: 1; }
+
+    /* Handle */
+    .handle {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 48px; height: 48px;
+      background: #fff;
+      border-radius: 50%;
+      box-shadow: 0 2px 10px rgba(0,0,0,.18);
+      z-index: 6;
+      cursor: ew-resize;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity .25s, box-shadow .2s;
+      touch-action: none;
+    }
+    .compare-container.active .handle { opacity: 1; }
+    .handle:hover, .handle:focus-visible {
+      box-shadow: 0 2px 16px rgba(0,0,0,.28);
+    }
+    .handle:focus-visible { outline: 2px solid #6B93D6; outline-offset: 2px; }
+    .handle .arrow {
+      width: 12px; height: 12px;
+      fill: #5A5550;
+    }
+
+    /* Range slider (invisible, for keyboard accessibility) */
+    .range-input {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: ew-resize;
+      z-index: 3;
+      margin: 0;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .range-input::-webkit-slider-thumb { -webkit-appearance: none; width: 1px; height: 1px; }
+    .range-input::-moz-range-thumb { width: 1px; height: 1px; border: none; }
+
+    /* ── Footer ─────────────────────────────────── */
+    .footer {
+      padding: 12px 20px 20px;
+      padding-bottom: calc(20px + env(safe-area-inset-bottom));
+      font-size: 0.75rem;
+      color: #B0AAA4;
+      text-align: center;
+    }
+
+    /* ── Responsive: Tablet (601px – 1024px) ────── */
+    @media (max-width: 1024px) {
+      .header { max-width: 720px; }
+      .upload-row { max-width: 720px; }
+      .controls-row { max-width: 720px; }
+      .compare-wrapper { max-width: 720px; }
+      .upload-card .upload-btn { padding: 16px; font-size: 0.9rem; }
+      .ctrl-btn { padding: 12px 22px; font-size: 0.85rem; min-height: 48px; }
+      .ctrl-btn svg { width: 17px; height: 17px; }
+      .handle { width: 52px; height: 52px; }
+      .handle .arrow { width: 14px; height: 14px; }
+    }
+
+    /* ── Responsive: Mobile (≤ 600px) ─────────── */
+    @media (max-width: 600px) {
+      .header { padding-top: 16px; }
+      .header h1 { font-size: 1.2rem; }
+      .header p { font-size: 0.8rem; }
+      .upload-row {
+        flex-direction: column;
+        gap: 10px;
+        padding: 14px 14px 0;
+      }
+      .upload-card .upload-btn {
+        padding: 16px 14px;
+        min-height: 52px;
+        font-size: 0.85rem;
+        border-radius: 10px;
+      }
+      .upload-filename { max-width: 200px; }
+      .controls-row {
+        gap: 8px;
+        padding: 10px 14px 0;
+      }
+      .ctrl-btn {
+        flex: 1;
+        justify-content: center;
+        padding: 12px 14px;
+        min-height: 48px;
+        font-size: 0.82rem;
+        border-radius: 10px;
+      }
+      .compare-wrapper { padding: 10px 10px 20px; }
+      .compare-container { border-radius: 10px; }
+      .empty-state { padding: 40px 20px; }
+      .empty-state svg { width: 40px; height: 40px; }
+      .empty-state .es-title { font-size: 0.9rem; }
+      .empty-state .es-desc { font-size: 0.8rem; }
+      .handle { width: 44px; height: 44px; }
+      .handle .arrow { width: 11px; height: 11px; }
+      .label { font-size: 0.62rem; padding: 3px 8px; top: 10px; }
+      .label-before { left: 10px; }
+      .label-after { right: 10px; }
+      .footer { font-size: 0.7rem; }
+    }
+
+    /* ── Very small phones (≤ 380px) ──────────── */
+    @media (max-width: 380px) {
+      .header h1 { font-size: 1.05rem; }
+      .upload-card .upload-btn { padding: 14px 10px; font-size: 0.8rem; }
+      .ctrl-btn { font-size: 0.75rem; padding: 10px 10px; }
+      .handle { width: 40px; height: 40px; }
+    }
+
+    /* ── Touch device hover fix ───────────────── */
+    @media (hover: none) and (pointer: coarse) {
+      .upload-card:hover .upload-btn { border-color: #D4CFC9; background: #fff; }
+      .upload-card.has-image:hover .upload-btn { background: #F0EDE8; border-color: #C8C2BA; }
+      .ctrl-btn:hover { border-color: #D4CFC9; background: #fff; }
+      .upload-card:active .upload-btn { border-color: #A09890; background: #F5F2EE; }
+      .ctrl-btn:active { background: #EBE7E2; border-color: #A09890; }
+    }
+
+    /* ── Landscape phone ──────────────────────── */
+    @media (max-height: 500px) and (orientation: landscape) {
+      .header { padding-top: 10px; }
+      .header p { display: none; }
+      .upload-row { padding-top: 8px; }
+      .controls-row { padding-top: 6px; }
+      .compare-wrapper { padding: 8px 12px 12px; }
+      .footer { padding: 6px 20px 10px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <h1>Image Compare</h1>
+    <p>Compare two images side by side — everything stays on your device.</p>
+  </header>
+
+  <!-- Upload Buttons -->
+  <div class="upload-row">
+    <div class="upload-card" id="upload-before-card">
+      <input type="file" id="input-before" accept="image/*" aria-label="Upload before image">
+      <div class="upload-btn" id="btn-before">
+        <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span class="upload-filename" id="label-before">Upload Before Image</span>
+      </div>
+    </div>
+    <div class="upload-card" id="upload-after-card">
+      <input type="file" id="input-after" accept="image/*" aria-label="Upload after image">
+      <div class="upload-btn" id="btn-after">
+        <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <span class="upload-filename" id="label-after">Upload After Image</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls-row">
+    <button class="ctrl-btn" id="btn-swap" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+      Swap Images
+    </button>
+    <button class="ctrl-btn" id="btn-reset" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+      Reset Slider
+    </button>
+  </div>
+
+  <!-- Comparison Area -->
+  <div class="compare-wrapper">
+    <div class="compare-container" id="compare-container">
+
+      <!-- Empty state -->
+      <div class="empty-state" id="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+        <div class="es-title">Upload two images to compare</div>
+        <div class="es-desc" id="empty-msg">Use the buttons above to select a "Before" and "After" image from your device.</div>
+      </div>
+
+      <!-- After image (background, full width) -->
+      <img class="img-layer after-layer" id="img-after" alt="After image" style="display:none;">
+
+      <!-- Before image (clipped overlay) -->
+      <img class="img-layer before-layer" id="img-before" alt="Before image" style="display:none;">
+
+      <!-- Accessible range input -->
+      <input type="range" class="range-input" id="range-input" min="0" max="100" value="50" aria-label="Image comparison slider" style="display:none;">
+
+      <!-- Labels -->
+      <div class="label label-before">Before</div>
+      <div class="label label-after">After</div>
+
+      <!-- Divider -->
+      <div class="divider" id="divider"></div>
+
+      <!-- Handle -->
+      <div class="handle" id="handle" tabindex="0" role="slider" aria-label="Comparison slider handle" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
+        <svg class="arrow" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+        <svg class="arrow" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
+
+    </div>
+  </div>
+
+  <footer class="footer">All images stay on your device. Nothing is uploaded.</footer>
+
+  <script>
+    (() => {
+      // ── State ──────────────────────────────────
+      let beforeURL = null;
+      let afterURL  = null;
+      let position  = 50; // percentage 0–100
+
+      // ── DOM refs ───────────────────────────────
+      const inputBefore  = document.getElementById('input-before');
+      const inputAfter   = document.getElementById('input-after');
+      const cardBefore   = document.getElementById('upload-before-card');
+      const cardAfter    = document.getElementById('upload-after-card');
+      const labelBefore  = document.getElementById('label-before');
+      const labelAfter   = document.getElementById('label-after');
+      const imgBefore    = document.getElementById('img-before');
+      const imgAfter     = document.getElementById('img-after');
+      const container    = document.getElementById('compare-container');
+      const emptyState   = document.getElementById('empty-state');
+      const emptyMsg     = document.getElementById('empty-msg');
+      const divider      = document.getElementById('divider');
+      const handle       = document.getElementById('handle');
+      const rangeInput   = document.getElementById('range-input');
+      const btnSwap      = document.getElementById('btn-swap');
+      const btnReset     = document.getElementById('btn-reset');
+
+      // ── Helpers ────────────────────────────────
+      function revokeURL(url) {
+        if (url) { try { URL.revokeObjectURL(url); } catch(e) {} }
+      }
+
+      function truncateName(name, max = 22) {
+        if (name.length <= max) return name;
+        const ext = name.lastIndexOf('.');
+        if (ext > 0 && name.length - ext <= 6) {
+          const e = name.slice(ext);
+          return name.slice(0, max - e.length - 1) + '…' + e;
+        }
+        return name.slice(0, max - 1) + '…';
+      }
+
+      // ── Image Loading ──────────────────────────
+      function loadImage(file, which) {
+        if (!file || !file.type.startsWith('image/')) return;
+
+        if (which === 'before') {
+          revokeURL(beforeURL);
+          beforeURL = URL.createObjectURL(file);
+          imgBefore.src = beforeURL;
+          labelBefore.textContent = truncateName(file.name);
+          cardBefore.classList.add('has-image');
+        } else {
+          revokeURL(afterURL);
+          afterURL = URL.createObjectURL(file);
+          imgAfter.src = afterURL;
+          labelAfter.textContent = truncateName(file.name);
+          cardAfter.classList.add('has-image');
+        }
+        updateView();
+      }
+
+      inputBefore.addEventListener('change', e => {
+        if (e.target.files[0]) loadImage(e.target.files[0], 'before');
+      });
+      inputAfter.addEventListener('change', e => {
+        if (e.target.files[0]) loadImage(e.target.files[0], 'after');
+      });
+
+      // ── View Update ────────────────────────────
+      function updateView() {
+        const hasBefore = !!beforeURL;
+        const hasAfter  = !!afterURL;
+        const hasBoth   = hasBefore && hasAfter;
+
+        // Empty state messaging
+        if (!hasBefore && !hasAfter) {
+          emptyMsg.textContent = 'Use the buttons above to select a "Before" and "After" image from your device.';
+        } else if (hasBefore && !hasAfter) {
+          emptyMsg.textContent = 'Now upload an "After" image to start comparing.';
+        } else if (!hasBefore && hasAfter) {
+          emptyMsg.textContent = 'Now upload a "Before" image to start comparing.';
+        }
+
+        emptyState.style.display = hasBoth ? 'none' : '';
+        imgBefore.style.display  = hasBoth ? '' : 'none';
+        imgAfter.style.display   = hasBoth ? '' : 'none';
+        rangeInput.style.display = hasBoth ? '' : 'none';
+
+        container.classList.toggle('active', hasBoth);
+        btnSwap.disabled  = !hasBoth;
+        btnReset.disabled = !hasBoth;
+
+        if (hasBoth) setPosition(position);
+      }
+
+      // ── Position / Clip ────────────────────────
+      function setPosition(pct) {
+        pct = Math.max(0, Math.min(100, pct));
+        position = pct;
+
+        imgBefore.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+        divider.style.left      = pct + '%';
+        handle.style.left       = pct + '%';
+        handle.setAttribute('aria-valuenow', Math.round(pct));
+        rangeInput.value = pct;
+      }
+
+      // ── Pointer Drag (unified Pointer Events API) ──
+      let dragging = false;
+      let activePointerId = null;
+
+      function pctFromPointer(e) {
+        const rect = container.getBoundingClientRect();
+        return ((e.clientX - rect.left) / rect.width) * 100;
+      }
+
+      function onPointerDown(e) {
+        if (!container.classList.contains('active')) return;
+        if (e.button && e.button !== 0) return; // left mouse only
+        dragging = true;
+        activePointerId = e.pointerId;
+        container.setPointerCapture(e.pointerId);
+        setPosition(pctFromPointer(e));
+        e.preventDefault();
+      }
+
+      function onPointerMove(e) {
+        if (!dragging || e.pointerId !== activePointerId) return;
+        setPosition(pctFromPointer(e));
+        e.preventDefault();
+      }
+
+      function onPointerUp(e) {
+        if (e.pointerId !== activePointerId) return;
+        dragging = false;
+        activePointerId = null;
+        try { container.releasePointerCapture(e.pointerId); } catch(_) {}
+      }
+
+      container.addEventListener('pointerdown', onPointerDown);
+      container.addEventListener('pointermove', onPointerMove);
+      container.addEventListener('pointerup', onPointerUp);
+      container.addEventListener('pointercancel', onPointerUp);
+
+      // Tap to position (for quick taps that aren't drags)
+      container.addEventListener('click', e => {
+        if (!container.classList.contains('active')) return;
+        const rect = container.getBoundingClientRect();
+        setPosition(((e.clientX - rect.left) / rect.width) * 100);
+      });
+
+      // Prevent context menu on long-press (mobile)
+      container.addEventListener('contextmenu', e => {
+        if (container.classList.contains('active')) e.preventDefault();
+      });
+
+      // ── Range Input (keyboard / accessibility) ─
+      rangeInput.addEventListener('input', () => {
+        setPosition(Number(rangeInput.value));
+      });
+
+      // Keyboard on handle
+      handle.addEventListener('keydown', e => {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+          setPosition(position - 1);
+          e.preventDefault();
+        } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+          setPosition(position + 1);
+          e.preventDefault();
+        }
+      });
+
+      // ── Swap ───────────────────────────────────
+      btnSwap.addEventListener('click', () => {
+        // Swap URLs
+        const tmpURL = beforeURL;
+        beforeURL = afterURL;
+        afterURL  = tmpURL;
+
+        // Swap src
+        imgBefore.src = beforeURL;
+        imgAfter.src  = afterURL;
+
+        // Swap labels
+        const tmpLabel = labelBefore.textContent;
+        labelBefore.textContent = labelAfter.textContent;
+        labelAfter.textContent  = tmpLabel;
+
+        // Swap card states
+        const bHas = cardBefore.classList.contains('has-image');
+        const aHas = cardAfter.classList.contains('has-image');
+        cardBefore.classList.toggle('has-image', aHas);
+        cardAfter.classList.toggle('has-image', bHas);
+
+        // Also swap the file inputs so re-picking works correctly
+        // (we leave them as-is since the URLs are already swapped)
+
+        setPosition(100 - position); // mirror the slider
+      });
+
+      // ── Reset ──────────────────────────────────
+      btnReset.addEventListener('click', () => setPosition(50));
+
+      // ── Cleanup on unload ──────────────────────
+      window.addEventListener('beforeunload', () => {
+        revokeURL(beforeURL);
+        revokeURL(afterURL);
+      });
+
+      // ── Init ───────────────────────────────────
+      updateView();
+    })();
+  </script>
+</body>
+</html>
